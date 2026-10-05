@@ -20,5 +20,5 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     boolean existsByIdentityProofNumber(String identityProofNumber);
 
-    
+
 }
