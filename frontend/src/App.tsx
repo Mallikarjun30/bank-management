@@ -1,39 +1,18 @@
-import { useEffect, useState } from "react";
-
-type HealthResponse = {
-  status: string;
-};
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import AppShell from "./components/AppShell";
+import HomePage from "./pages/HomePage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function App() {
-  const [backendStatus, setBackendStatus] = useState("Checking...");
-
-  useEffect(() => {
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-    fetch(`${apiBaseUrl}/health`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Backend request failed");
-        }
-
-        return response.json() as Promise<HealthResponse>;
-      })
-      .then((data) => {
-        setBackendStatus(data.status);
-      })
-      .catch((error) => {
-        console.error("Backend health check failed:", error);
-        setBackendStatus("DOWN");
-      });
-  }, []);
-
   return (
-    <main>
-      <h1>Bank Management System</h1>
-
-      <p>Frontend: UP</p>
-      <p>Backend: {backendStatus}</p>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }
 
