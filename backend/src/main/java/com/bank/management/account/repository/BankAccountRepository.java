@@ -14,4 +14,6 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, Long> 
     Optional<BankAccount> findByCustomerId(Long customerId);
 
     boolean existsByCustomerId(Long customerId);
+
+    boolean existsByBranch_Id(Long branchId);
 }

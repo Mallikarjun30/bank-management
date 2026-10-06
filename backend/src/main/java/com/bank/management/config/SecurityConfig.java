@@ -1,5 +1,6 @@
 package com.bank.management.config;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -11,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
