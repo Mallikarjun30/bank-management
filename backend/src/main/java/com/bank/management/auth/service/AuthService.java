@@ -1,0 +1,215 @@
+package com.bank.management.auth.service;
+
+import com.bank.management.auth.enums.SessionStatus;
+import com.bank.management.auth.enums.SessionTerminationReason;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.bank.management.auth.dto.LoginRequest;
+import com.bank.management.auth.dto.LoginResponse;
+import com.bank.management.auth.entity.Session;
+import com.bank.management.auth.repository.SessionRepository;
+import com.bank.management.common.security.EmployeeUserDetails;
+import com.bank.management.employee.entity.Employee;
+import com.bank.management.employee.repository.EmployeeRepository;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.Base64;
+
+@Service
+public class AuthService {
+
+    private final AuthenticationManager authenticationManager;
+    private final EmployeeRepository employeeRepository;
+    private final SessionRepository sessionRepository;
+    private final JwtService jwtService;
+    private final long refreshTokenTtlSeconds;
+
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    public AuthService(
+            AuthenticationManager authenticationManager,
+            EmployeeRepository employeeRepository,
+            SessionRepository sessionRepository,
+            JwtService jwtService,
+            @Value("${JWT_REFRESH_TTL_SECONDS:604800}")
+            long refreshTokenTtlSeconds
+    ) {
+        this.authenticationManager = authenticationManager;
+        this.employeeRepository = employeeRepository;
+        this.sessionRepository = sessionRepository;
+        this.jwtService = jwtService;
+
+        if (refreshTokenTtlSeconds <= 0) {
+            throw new IllegalArgumentException(
+                    "Refresh-token lifetime must be positive"
+            );
+        }
+
+        this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
+    }
+
+    @Transactional
+    public LoginResponse login(LoginRequest request) {
+        Authentication authentication =
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                request.identifier().trim(),
+                                request.password()
+                        )
+                );
+
+        EmployeeUserDetails principal =
+                (EmployeeUserDetails) authentication.getPrincipal();
+
+        Employee employee = employeeRepository
+                .findById(principal.getInternalEmployeeId())
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "Authenticated employee no longer exists"
+                        ));
+
+        String refreshToken = generateRefreshToken();
+        String refreshTokenHash = hashToken(refreshToken);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Session session = new Session(
+                employee,
+                now,
+                refreshTokenHash,
+                now.plusSeconds(refreshTokenTtlSeconds)
+        );
+
+        session = sessionRepository.save(session);
+
+        String accessToken = jwtService.generateAccessToken(
+                employee.getId(),
+                employee.getRole().name(),
+                session.getSessionId()
+        );
+
+        LoginResponse.EmployeeSummary employeeSummary =
+                new LoginResponse.EmployeeSummary(
+                        employee.getId(),
+                        employee.getEmployeeId(),
+                        employee.getFullName(),
+                        employee.getRole().name()
+                );
+
+        return new LoginResponse(
+                accessToken,
+                refreshToken,
+                "Bearer",
+                jwtService.getAccessTokenTtlSeconds(),
+                employeeSummary
+        );
+    }
+
+    private String generateRefreshToken() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(bytes);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest =
+                    MessageDigest.getInstance("SHA-256");
+
+            byte[] hash = digest.digest(
+                    token.getBytes(StandardCharsets.UTF_8)
+            );
+
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(
+                    "SHA-256 is unavailable",
+                    exception
+            );
+        }
+    }
+    @Transactional
+public void logout(Long employeeId, String accessToken) {
+    final Claims claims;
+
+    try {
+        claims = jwtService.parseClaims(accessToken);
+    } catch (JwtException | IllegalArgumentException exception) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Invalid or expired access token"
+        );
+    }
+
+    String subject = claims.getSubject();
+    String sessionId = claims.get("sid", String.class);
+
+    if (subject == null || sessionId == null) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Invalid access token claims"
+        );
+    }
+
+    final Long tokenEmployeeId;
+
+    try {
+        tokenEmployeeId = Long.valueOf(subject);
+    } catch (NumberFormatException exception) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Invalid access token subject"
+        );
+    }
+
+    if (!employeeId.equals(tokenEmployeeId)) {
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Token does not belong to the authenticated employee"
+        );
+    }
+
+    Session session = sessionRepository.findBySessionId(sessionId)
+            .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Session not found"
+            ));
+
+    if (!session.getEmployee().getId().equals(employeeId)
+            || session.getStatus() != SessionStatus.ACTIVE) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Session is not active"
+        );
+    }
+
+    LocalDateTime now = LocalDateTime.now();
+
+    session.endSession(
+            now,
+            SessionStatus.LOGGED_OUT,
+            SessionTerminationReason.LOGOUT
+    );
+
+    session.revokeRefreshToken(now);
+
+    sessionRepository.save(session);
+}
+}

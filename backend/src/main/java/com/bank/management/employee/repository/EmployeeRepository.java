@@ -10,6 +10,11 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     Optional<Employee> findByEmployeeId(String employeeId);
 
+    Optional<Employee> findByEmailIgnoreCaseAndRole(
+            String email,
+            EmployeeRole role
+    );
+
     boolean existsByEmailAndRole(String email, EmployeeRole role);
 
     boolean existsByEmployeeId(String employeeId);
@@ -17,4 +22,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     boolean existsByIdentityProofNumber(String identityProofNumber);
 
     boolean existsByBranch_Id(Long branchId);
+
+    boolean existsByRole(EmployeeRole role);
+
+    long countByRole(EmployeeRole role);
 }

@@ -110,6 +110,10 @@ public class Session {
         this.status = SessionStatus.ACTIVE;
     }
 
+    public SessionStatus getStatus() {
+    return status;
+}
+
     @PrePersist
     private void generateSessionId() {
         if (sessionId == null) {

@@ -1,29 +1,34 @@
 package com.bank.management.config;
 
-import com.bank.management.common.security.ApiAccessDeniedHandler;
-import com.bank.management.common.security.ApiAuthenticationEntryPoint;
+import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
+import com.bank.management.common.security.ApiAccessDeniedHandler;
+import com.bank.management.common.security.ApiAuthenticationEntryPoint;
+import com.bank.management.common.security.JwtAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(
-            HttpSecurity http,
-            ApiAuthenticationEntryPoint authenticationEntryPoint,
-            ApiAccessDeniedHandler accessDeniedHandler) throws Exception {
+SecurityFilterChain securityFilterChain(
+        HttpSecurity http,
+        ApiAuthenticationEntryPoint authenticationEntryPoint,
+        ApiAccessDeniedHandler accessDeniedHandler,
+        JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
 
         http
             .csrf(csrf -> csrf.disable())
@@ -35,10 +40,18 @@ public class SecurityConfig {
                 .authenticationEntryPoint(authenticationEntryPoint)
                 .accessDeniedHandler(accessDeniedHandler)
             )
+            .addFilterBefore(
+    jwtAuthenticationFilter,
+    UsernamePasswordAuthenticationFilter.class
+)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health").permitAll()
-                .anyRequest().authenticated()
-            );
+    .requestMatchers(
+        "/api/health",
+        "/api/auth/login"
+    ).permitAll()
+    .anyRequest().authenticated()
+);
+             
 
         return http.build();
     }
@@ -60,4 +73,10 @@ public class SecurityConfig {
 
         return source;
     }
+    @Bean
+AuthenticationManager authenticationManager(
+        AuthenticationConfiguration configuration
+) throws Exception {
+    return configuration.getAuthenticationManager();
+}
 }
