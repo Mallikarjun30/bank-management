@@ -47,7 +47,8 @@ SecurityFilterChain securityFilterChain(
             .authorizeHttpRequests(auth -> auth
     .requestMatchers(
         "/api/health",
-        "/api/auth/login"
+        "/api/auth/login",
+        "/api/auth/refresh"
     ).permitAll()
     .anyRequest().authenticated()
 );

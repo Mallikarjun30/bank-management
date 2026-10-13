@@ -1,6 +1,8 @@
 
 package com.bank.management.auth.controller;
 
+import com.bank.management.auth.dto.RefreshRequest;
+
 import com.bank.management.auth.dto.AuthMeResponse;
 import com.bank.management.auth.dto.LoginRequest;
 import com.bank.management.auth.service.AuthService;
@@ -84,5 +86,11 @@ public class AuthController {
         authService.logout(currentEmployee.getId(), accessToken);
 
         return ResponseEntity.noContent().build();
+    }
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(
+            @Valid @RequestBody RefreshRequest request
+    ) {
+        return ResponseEntity.ok(authService.refresh(request));
     }
 }

@@ -1,5 +1,9 @@
 package com.bank.management.auth.service;
 
+import com.bank.management.auth.dto.RefreshRequest;
+import com.bank.management.auth.dto.RefreshResponse;
+import com.bank.management.employee.enums.EmployeeStatus;
+
 import com.bank.management.auth.enums.SessionStatus;
 import com.bank.management.auth.enums.SessionTerminationReason;
 import io.jsonwebtoken.Claims;
@@ -118,6 +122,68 @@ public class AuthService {
                 employeeSummary
         );
     }
+
+    @Transactional
+    public RefreshResponse refresh(RefreshRequest request) {
+    String presentedToken = request.refreshToken().trim();
+
+    String presentedTokenHash = hashToken(presentedToken);
+
+    Session session = sessionRepository
+            .findByRefreshTokenHash(presentedTokenHash)
+            .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid refresh token"
+            ));
+
+    LocalDateTime now = LocalDateTime.now();
+
+    // Validate the session and refresh-token state.
+    if (session.getStatus() != SessionStatus.ACTIVE
+            || session.getRefreshTokenRevokedAt() != null
+            || session.getRefreshTokenExpiresAt() == null
+            || !session.getRefreshTokenExpiresAt().isAfter(now)) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Refresh token is expired or revoked"
+        );
+    }
+
+    Employee employee = session.getEmployee();
+
+    // A deactivated employee must not obtain new tokens.
+    if (employee.getStatus() != EmployeeStatus.ACTIVE) {
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Employee account is inactive"
+        );
+    }
+
+    // Generate a replacement refresh token.
+    String newRefreshToken = generateRefreshToken();
+    String newRefreshTokenHash = hashToken(newRefreshToken);
+
+    session.rotateRefreshToken(
+            newRefreshTokenHash,
+            now.plusSeconds(refreshTokenTtlSeconds)
+    );
+
+    sessionRepository.save(session);
+
+    // Keep the same session, but issue a new access token.
+    String newAccessToken = jwtService.generateAccessToken(
+            employee.getId(),
+            employee.getRole().name(),
+            session.getSessionId()
+    );
+
+    return new RefreshResponse(
+            newAccessToken,
+            newRefreshToken,
+            "Bearer",
+            jwtService.getAccessTokenTtlSeconds()
+    );
+}
 
     private String generateRefreshToken() {
         byte[] bytes = new byte[32];

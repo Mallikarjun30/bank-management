@@ -1,5 +1,7 @@
 package com.bank.management.common.exception;
 
+import org.springframework.web.server.ResponseStatusException;
+
 import com.bank.management.branch.exception.BranchConflictException;
 import com.bank.management.branch.exception.BranchNotFoundException;
 import com.bank.management.common.dto.ApiErrorResponse;
@@ -192,6 +194,36 @@ public class GlobalExceptionHandler {
                 "The HTTP method is not supported for this endpoint",
                 List.of(),
                 request);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
+        ResponseStatusException exception,
+        HttpServletRequest request) {
+
+    HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
+
+    ErrorCode errorCode = switch (status) {
+        case UNAUTHORIZED -> ErrorCode.AUTHENTICATION_REQUIRED;
+        case FORBIDDEN -> ErrorCode.ACCESS_DENIED;
+        case NOT_FOUND -> ErrorCode.RESOURCE_NOT_FOUND;
+        case METHOD_NOT_ALLOWED -> ErrorCode.METHOD_NOT_ALLOWED;
+        case BAD_REQUEST -> ErrorCode.MALFORMED_REQUEST;
+        case CONFLICT -> ErrorCode.RESOURCE_CONFLICT;
+        default -> ErrorCode.INTERNAL_SERVER_ERROR;
+    };
+
+    String message = exception.getReason() != null
+            ? exception.getReason()
+            : status.getReasonPhrase();
+
+    return buildResponse(
+            status,
+            errorCode,
+            message,
+            List.of(),
+            request
+    );
     }
 
     @ExceptionHandler(Exception.class)

@@ -166,4 +166,24 @@ public class Session {
     public void revokeRefreshToken(LocalDateTime revokedAt) {
         this.refreshTokenRevokedAt = revokedAt;
     }
+    public void rotateRefreshToken(
+        String newRefreshTokenHash,
+        LocalDateTime newRefreshTokenExpiresAt
+) {
+    if (status != SessionStatus.ACTIVE) {
+        throw new IllegalStateException(
+                "Cannot refresh an inactive session"
+        );
+    }
+
+    if (refreshTokenRevokedAt != null) {
+        throw new IllegalStateException(
+                "Cannot refresh a revoked token"
+        );
+    }
+
+    this.refreshTokenHash = newRefreshTokenHash;
+    this.refreshTokenExpiresAt = newRefreshTokenExpiresAt;
+    this.refreshTokenRevokedAt = null;
+}
 }

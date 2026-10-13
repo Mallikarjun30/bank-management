@@ -1,5 +1,6 @@
 package com.bank.management.common.exception;
 
+import org.springframework.web.server.ResponseStatusException;
 import com.bank.management.branch.exception.BranchConflictException;
 import com.bank.management.branch.exception.BranchNotFoundException;
 import com.bank.management.common.dto.ApiErrorResponse;
@@ -112,5 +113,28 @@ class GlobalExceptionHandlerTest {
                 response.getBody().fieldErrors().get(0).field());
         assertEquals("Branch name is required",
                 response.getBody().fieldErrors().get(0).message());
+    }
+    @Test
+    void unauthorizedResponseStatusExceptionReturnsStandard401Response() {
+    ResponseStatusException exception = new ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "Invalid refresh token"
+    );
+
+    ResponseEntity<ApiErrorResponse> response =
+            handler.handleResponseStatusException(exception, request);
+
+    assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    assertNotNull(response.getBody());
+    assertEquals(
+            ErrorCode.AUTHENTICATION_REQUIRED,
+            response.getBody().errorCode()
+    );
+    assertEquals(
+            "Invalid refresh token",
+            response.getBody().message()
+    );
+    assertEquals("/api/branches", response.getBody().path());
+    assertTrue(response.getBody().fieldErrors().isEmpty());
     }
 }
