@@ -45,13 +45,15 @@ SecurityFilterChain securityFilterChain(
     UsernamePasswordAuthenticationFilter.class
 )
             .authorizeHttpRequests(auth -> auth
-    .requestMatchers(
+                .requestMatchers(
         "/api/health",
-        "/api/auth/login",
-        "/api/auth/refresh"
-    ).permitAll()
-    .anyRequest().authenticated()
-);
+                    "/api/auth/login",
+                    "/api/auth/refresh",
+                    "/api/auth/password-reset/request",
+                    "/api/auth/password-reset/confirm"
+                ).permitAll()
+                .anyRequest().authenticated()
+            );
              
 
         return http.build();
