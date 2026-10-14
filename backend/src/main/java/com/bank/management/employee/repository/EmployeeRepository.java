@@ -1,5 +1,7 @@
 package com.bank.management.employee.repository;
 
+import java.util.List;
+
 import com.bank.management.employee.entity.Employee;
 import com.bank.management.employee.enums.EmployeeRole;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -7,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+
+    List<Employee> findAllByEmailIgnoreCase(String email);
 
     Optional<Employee> findByEmployeeId(String employeeId);
 
