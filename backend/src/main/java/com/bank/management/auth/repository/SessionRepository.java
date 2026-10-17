@@ -19,7 +19,7 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     boolean existsBySessionId(String sessionId);
 
-    List<Session> findByEmployeeId(Long employeeId);
+    List<Session> findByEmployeeIdOrderByLoginAtDesc(Long employeeId);
 
     List<Session> findByEmployeeIdAndStatus(
             Long employeeId,

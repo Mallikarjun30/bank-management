@@ -13,8 +13,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+import java.util.List;
 
 import com.bank.management.auth.dto.AuthMeResponse;
+import com.bank.management.auth.dto.SessionHistoryResponse;
 import com.bank.management.auth.dto.LoginRequest;
 import com.bank.management.auth.service.AuthService;
 import com.bank.management.common.security.CurrentEmployee;
@@ -80,6 +82,15 @@ public class AuthController {
         );
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/sessions")
+    public ResponseEntity<List<SessionHistoryResponse>> sessions() {
+        Employee employee = currentEmployee.get();
+
+        return ResponseEntity.ok(
+                authService.getSessionHistory(employee.getId())
+        );
     }
 
     @PostMapping("/logout")

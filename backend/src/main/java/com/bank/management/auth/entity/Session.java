@@ -111,8 +111,12 @@ public class Session {
     }
 
     public SessionStatus getStatus() {
-    return status;
-}
+        return status;
+    }
+
+    public SessionTerminationReason getTerminationReason() {
+        return terminationReason;
+    }
 
     @PrePersist
     private void generateSessionId() {

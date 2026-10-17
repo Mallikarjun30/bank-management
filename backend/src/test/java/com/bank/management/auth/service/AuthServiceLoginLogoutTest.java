@@ -2,6 +2,7 @@ package com.bank.management.auth.service;
 
 import com.bank.management.auth.dto.LoginRequest;
 import com.bank.management.auth.dto.LoginResponse;
+import com.bank.management.auth.dto.SessionHistoryResponse;
 import com.bank.management.auth.enums.SessionTerminationReason;
 import com.bank.management.auth.repository.SessionRepository;
 import com.bank.management.employee.entity.Employee;
@@ -22,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -142,6 +144,33 @@ class AuthServiceLoginLogoutTest {
                 response.refreshToken(),
                 savedSession.getRefreshTokenHash()
         );
+    }
+
+
+    @Test
+    void getSessionHistoryReturnsSessionMetadataForEmployee() {
+        LocalDateTime loginAt = LocalDateTime.of(2026, 10, 17, 10, 0);
+
+        when(sessionRepository.findByEmployeeIdOrderByLoginAtDesc(42L))
+                .thenReturn(List.of(session));
+        when(session.getSessionId()).thenReturn("test-session-id");
+        when(session.getLoginAt()).thenReturn(loginAt);
+        when(session.getEndedAt()).thenReturn(null);
+        when(session.getStatus()).thenReturn(SessionStatus.ACTIVE);
+        when(session.getTerminationReason()).thenReturn(null);
+
+        List<SessionHistoryResponse> response =
+                authService.getSessionHistory(42L);
+
+        assertEquals(1, response.size());
+        assertEquals("test-session-id", response.get(0).sessionId());
+        assertEquals(loginAt, response.get(0).loginAt());
+        assertNull(response.get(0).endedAt());
+        assertEquals("ACTIVE", response.get(0).status());
+        assertNull(response.get(0).terminationReason());
+
+        verify(sessionRepository)
+                .findByEmployeeIdOrderByLoginAtDesc(42L);
     }
 
     @Test

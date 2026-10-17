@@ -2,6 +2,7 @@ package com.bank.management.auth.service;
 
 import com.bank.management.auth.dto.RefreshRequest;
 import com.bank.management.auth.dto.RefreshResponse;
+import com.bank.management.auth.dto.SessionHistoryResponse;
 import com.bank.management.employee.enums.EmployeeStatus;
 
 import com.bank.management.auth.enums.SessionStatus;
@@ -32,6 +33,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 
 @Service
 public class AuthService {
@@ -123,7 +125,24 @@ public class AuthService {
         );
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
+    public List<SessionHistoryResponse> getSessionHistory(Long employeeId) {
+        return sessionRepository
+                .findByEmployeeIdOrderByLoginAtDesc(employeeId)
+                .stream()
+                .map(session -> new SessionHistoryResponse(
+                        session.getSessionId(),
+                        session.getLoginAt(),
+                        session.getEndedAt(),
+                        session.getStatus().name(),
+                        session.getTerminationReason() == null
+                                ? null
+                                : session.getTerminationReason().name()
+                ))
+                .toList();
+    }
+
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public RefreshResponse refresh(RefreshRequest request) {
     String presentedToken = request.refreshToken().trim();
 
@@ -138,11 +157,29 @@ public class AuthService {
 
     LocalDateTime now = LocalDateTime.now();
 
-    // Validate the session and refresh-token state.
+    // Persist expiration before rejecting an expired refresh token.
+    if (session.getStatus() == SessionStatus.ACTIVE
+            && session.getRefreshTokenExpiresAt() != null
+            && !session.getRefreshTokenExpiresAt().isAfter(now)) {
+
+        session.endSession(
+                now,
+                SessionStatus.EXPIRED,
+                SessionTerminationReason.EXPIRED
+        );
+        session.revokeRefreshToken(now);
+        sessionRepository.save(session);
+
+        throw new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Refresh token is expired or revoked"
+        );
+    }
+
+    // Validate the remaining session and refresh-token state.
     if (session.getStatus() != SessionStatus.ACTIVE
             || session.getRefreshTokenRevokedAt() != null
-            || session.getRefreshTokenExpiresAt() == null
-            || !session.getRefreshTokenExpiresAt().isAfter(now)) {
+            || session.getRefreshTokenExpiresAt() == null) {
         throw new ResponseStatusException(
                 HttpStatus.UNAUTHORIZED,
                 "Refresh token is expired or revoked"

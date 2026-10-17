@@ -4,6 +4,7 @@ import com.bank.management.auth.dto.RefreshRequest;
 import com.bank.management.auth.dto.RefreshResponse;
 import com.bank.management.auth.entity.Session;
 import com.bank.management.auth.enums.SessionStatus;
+import com.bank.management.auth.enums.SessionTerminationReason;
 import com.bank.management.auth.repository.SessionRepository;
 import com.bank.management.employee.entity.Employee;
 import com.bank.management.employee.enums.EmployeeRole;
@@ -140,7 +141,9 @@ class AuthServiceRefreshTest {
     }
 
     @Test
-    void refreshWithExpiredTokenReturns401() {
+    void refreshWithExpiredTokenReturns401AndEndsSession() {
+        when(session.getStatus()).thenReturn(SessionStatus.ACTIVE);
+        when(session.getRefreshTokenRevokedAt()).thenReturn(null);
         when(session.getRefreshTokenExpiresAt())
                 .thenReturn(LocalDateTime.now().minusMinutes(1));
 
@@ -157,7 +160,13 @@ class AuthServiceRefreshTest {
                 exception.getReason()
         );
 
-        verify(sessionRepository, never()).save(any(Session.class));
+        verify(session).endSession(
+                any(LocalDateTime.class),
+                eq(SessionStatus.EXPIRED),
+                eq(SessionTerminationReason.EXPIRED)
+        );
+        verify(session).revokeRefreshToken(any(LocalDateTime.class));
+        verify(sessionRepository).save(session);
     }
 
     @Test
