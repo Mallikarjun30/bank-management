@@ -1,5 +1,7 @@
 package com.bank.management.common.exception;
 
+import org.springframework.security.access.AccessDeniedException;
+
 import org.springframework.web.server.ResponseStatusException;
 
 import com.bank.management.branch.exception.BranchConflictException;
@@ -32,6 +34,19 @@ public class GlobalExceptionHandler {
 
     private static final Logger log =
             LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                ErrorCode.ACCESS_DENIED,
+                exception.getMessage(),
+                List.of(),
+                request);
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(
