@@ -160,4 +160,77 @@ void managerCannotBeDeactivatedWhileActiveStaffReportToThem() {
 
     verify(employeeRepository, never()).save(manager);
 }
+
+@Test
+void ownerCanMoveManagerWithoutReassigningStaff() {
+    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+
+    Employee manager = mock(Employee.class);
+    Branch newBranch = mock(Branch.class);
+    when(manager.getReportingManager()).thenReturn(actor);
+
+    when(employeeRepository.findById(2L))
+            .thenReturn(Optional.of(manager));
+    when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
+    when(branchRepository.findById(2L))
+            .thenReturn(Optional.of(newBranch));
+        
+    when(employeeRepository.save(manager)).thenReturn(manager);
+    when(manager.getId()).thenReturn(2L);
+    when(manager.getEmployeeId()).thenReturn("EMP-MANAGER-002");        
+
+    employeeService.updateAssignment(
+            2L,
+            new EmployeeAssignmentRequest(2L, null)
+    );
+
+    verify(manager).setBranch(newBranch);
+    verify(employeeRepository).save(manager);
+
+    // Moving a Manager must not trigger automatic Staff reassignment.
+    verify(
+            employeeRepository,
+            never()
+    ).findAllByReportingManager_IdAndRoleOrderByIdAsc(
+            2L,
+            EmployeeRole.STAFF
+    );
+}
+
+@Test
+void ownerCanReassignStaffToAnotherManagerInSameBranch() {
+    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+
+    Employee staff = mock(Employee.class);
+    Employee manager = mock(Employee.class);
+    Branch branch = mock(Branch.class);
+    when(staff.getReportingManager()).thenReturn(manager);
+
+    when(employeeRepository.findById(100L))
+            .thenReturn(Optional.of(staff));
+    when(staff.getRole()).thenReturn(EmployeeRole.STAFF);
+
+    when(branchRepository.findById(2L))
+            .thenReturn(Optional.of(branch));
+    when(branch.getId()).thenReturn(2L);
+
+    when(employeeRepository.findById(20L))
+            .thenReturn(Optional.of(manager));
+    when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
+    when(manager.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
+    when(manager.getBranch()).thenReturn(branch);
+
+    when(employeeRepository.save(staff)).thenReturn(staff);
+    when(staff.getId()).thenReturn(100L);
+    when(staff.getEmployeeId()).thenReturn("EMP-STAFF-100");
+
+    employeeService.updateAssignment(
+            100L,
+            new EmployeeAssignmentRequest(2L, 20L)
+    );
+
+    verify(staff).setBranch(branch);
+    verify(staff).setReportingManager(manager);
+    verify(employeeRepository).save(staff);
+}
 }
