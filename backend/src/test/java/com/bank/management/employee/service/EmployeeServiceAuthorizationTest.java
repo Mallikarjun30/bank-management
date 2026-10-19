@@ -174,10 +174,10 @@ void ownerCanMoveManagerWithoutReassigningStaff() {
     when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
     when(branchRepository.findById(2L))
             .thenReturn(Optional.of(newBranch));
-        
+
     when(employeeRepository.save(manager)).thenReturn(manager);
     when(manager.getId()).thenReturn(2L);
-    when(manager.getEmployeeId()).thenReturn("EMP-MANAGER-002");        
+    when(manager.getEmployeeId()).thenReturn("EMP-MANAGER-002");
 
     employeeService.updateAssignment(
             2L,
