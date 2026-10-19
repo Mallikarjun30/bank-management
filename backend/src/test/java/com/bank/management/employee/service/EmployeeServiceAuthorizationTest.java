@@ -234,6 +234,46 @@ void ownerCanReassignStaffToAnotherManagerInSameBranch() {
     verify(employeeRepository).save(staff);
 }
 
+
+@Test
+void ownerCanReassignStaffAcrossBranchesToManagerInDestinationBranch() {
+    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+
+    Employee staff = mock(Employee.class);
+    Employee destinationManager = mock(Employee.class);
+    Branch destinationBranch = mock(Branch.class);
+
+    when(staff.getReportingManager()).thenReturn(destinationManager);
+
+    when(employeeRepository.findById(100L))
+            .thenReturn(Optional.of(staff));
+    when(staff.getRole()).thenReturn(EmployeeRole.STAFF);
+
+    when(branchRepository.findById(3L))
+            .thenReturn(Optional.of(destinationBranch));
+    when(destinationBranch.getId()).thenReturn(3L);
+
+    when(employeeRepository.findById(30L))
+            .thenReturn(Optional.of(destinationManager));
+    when(destinationManager.getRole()).thenReturn(EmployeeRole.MANAGER);
+    when(destinationManager.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
+    when(destinationManager.getBranch()).thenReturn(destinationBranch);
+
+    when(employeeRepository.save(staff)).thenReturn(staff);
+    when(staff.getId()).thenReturn(100L);
+    when(staff.getEmployeeId()).thenReturn("EMP-STAFF-100");
+
+    employeeService.updateAssignment(
+            100L,
+            new EmployeeAssignmentRequest(3L, 30L)
+    );
+
+    verify(staff).setBranch(destinationBranch);
+    verify(staff).setReportingManager(destinationManager);
+    verify(employeeRepository).save(staff);
+}
+
+
 @Test
 void managerCannotUpdateStaffAssignedToAnotherManager() {
     Employee otherManager = mock(Employee.class);
