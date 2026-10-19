@@ -233,4 +233,27 @@ void ownerCanReassignStaffToAnotherManagerInSameBranch() {
     verify(staff).setReportingManager(manager);
     verify(employeeRepository).save(staff);
 }
+
+@Test
+void managerCannotUpdateStaffAssignedToAnotherManager() {
+    Employee otherManager = mock(Employee.class);
+    Employee targetStaff = mock(Employee.class);
+
+    when(actor.getId()).thenReturn(10L);
+    when(actor.getRole()).thenReturn(EmployeeRole.MANAGER);
+
+    when(targetStaff.getRole()).thenReturn(EmployeeRole.STAFF);
+    when(targetStaff.getReportingManager()).thenReturn(otherManager);
+    when(otherManager.getId()).thenReturn(20L);
+
+    when(employeeRepository.findById(100L))
+            .thenReturn(Optional.of(targetStaff));
+
+    assertThrows(
+            AccessDeniedException.class,
+            () -> employeeService.updateEmployee(100L, null)
+    );
+
+    verify(employeeRepository, never()).save(targetStaff);
+}
 }
