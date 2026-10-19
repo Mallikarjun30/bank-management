@@ -83,4 +83,27 @@ class EmployeeControllerSecurityTest {
                                 """))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @WithMockUser(roles = "STAFF")
+    void staffCannotUpdateEmployee() throws Exception {
+        mockMvc.perform(
+                org.springframework.test.web.servlet.request
+                        .MockMvcRequestBuilders.put("/api/employees/100")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeId": "EMP-100",
+                                  "email": "test@example.com",
+                                  "fullName": "Unauthorized Update",
+                                  "dateOfBirth": "1995-05-15",
+                                  "identityProofNumber": "123456789012",
+                                  "phoneNumber": "9876543210",
+                                  "gender": "MALE",
+                                  "dateOfJoining": "2025-01-01",
+                                  "monthlySalary": 25000.00
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
 }
