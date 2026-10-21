@@ -1,5 +1,9 @@
 package com.bank.management.employee.service;
 
+import com.bank.management.account.repository.BankAccountRepository;
+import com.bank.management.common.security.ResourceAuthorizationService;
+
+
 import com.bank.management.common.exception.BusinessRuleException;
 import com.bank.management.employee.dto.EmployeeAssignmentRequest;
 import com.bank.management.employee.dto.EmployeeStatusRequest;
@@ -46,17 +50,31 @@ class EmployeeServiceAuthorizationTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
-    @InjectMocks
+    @Mock
+    private BankAccountRepository bankAccountRepository;
+
     private EmployeeService employeeService;
 
     private Employee actor;
 
     @BeforeEach
-    void setUp() {
-        actor = mock(Employee.class);
-        when(currentEmployee.get()).thenReturn(actor);
-        when(actor.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
-    }
+void setUp() {
+    actor = mock(Employee.class);
+
+    when(currentEmployee.get()).thenReturn(actor);
+    when(actor.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
+
+    ResourceAuthorizationService resourceAuthorizationService =
+            new ResourceAuthorizationService(bankAccountRepository);
+
+    employeeService = new EmployeeService(
+            employeeRepository,
+            branchRepository,
+            currentEmployee,
+            passwordEncoder,
+            resourceAuthorizationService
+    );
+}
 
     @Test
     void staffCannotCreateAnotherEmployee() {

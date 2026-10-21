@@ -1,5 +1,7 @@
 package com.bank.management.employee.service;
 
+import com.bank.management.common.security.ResourceAuthorizationService;
+
 import com.bank.management.branch.entity.Branch;
 import com.bank.management.branch.repository.BranchRepository;
 import com.bank.management.common.exception.BusinessRuleException;
@@ -33,17 +35,20 @@ public class EmployeeService {
     private final BranchRepository branchRepository;
     private final CurrentEmployee currentEmployee;
     private final PasswordEncoder passwordEncoder;
+    private final ResourceAuthorizationService resourceAuthorizationService;
 
     public EmployeeService(
             EmployeeRepository employeeRepository,
             BranchRepository branchRepository,
             CurrentEmployee currentEmployee,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            ResourceAuthorizationService resourceAuthorizationService
     ) {
         this.employeeRepository = employeeRepository;
         this.branchRepository = branchRepository;
         this.currentEmployee = currentEmployee;
         this.passwordEncoder = passwordEncoder;
+        this.resourceAuthorizationService = resourceAuthorizationService;
     }
 
     public EmployeeResponse createManager(CreateEmployeeRequest request) {
@@ -190,7 +195,8 @@ public class EmployeeService {
         target.setMonthlySalary(request.monthlySalary());
 
         return EmployeeResponse.from(
-                employeeRepository.save(target), true);
+                employeeRepository.save(target),
+                canViewSalary(actor, target));
     }
 
     public EmployeeResponse updateAssignment(
@@ -324,50 +330,22 @@ public class EmployeeService {
     }
 
     private void authorizeView(Employee actor, Employee target) {
-        if (actor.getRole() == EmployeeRole.OWNER) {
-            if (target.getRole() == EmployeeRole.OWNER) {
-                throw new BusinessRuleException(
-                        "Owner records are not exposed through employee CRUD");
-            }
-            return;
+        if (target.getRole() == EmployeeRole.OWNER) {
+            throw new BusinessRuleException(
+            "Owner records are not exposed through employee CRUD");
         }
 
-        if (actor.getRole() == EmployeeRole.MANAGER
-                && target.getRole() == EmployeeRole.STAFF
-                && target.getReportingManager() != null
-                && Objects.equals(
-                        target.getReportingManager().getId(), actor.getId())) {
-            return;
-        }
-
-        if (Objects.equals(actor.getId(), target.getId())) {
-            return;
-        }
-
-        throw new AccessDeniedException(
+        if (!resourceAuthorizationService.canAccessEmployee(actor, target)) {
+            throw new AccessDeniedException(
                 "You are not allowed to view this employee");
+        }
     }
 
     private void authorizeManagement(Employee actor, Employee target) {
-        if (target.getRole() == EmployeeRole.OWNER) {
-            throw new BusinessRuleException(
-                    "Owner records cannot be managed through employee CRUD");
-        }
-
-        if (actor.getRole() == EmployeeRole.OWNER) {
-            return;
-        }
-
-        if (actor.getRole() == EmployeeRole.MANAGER
-                && target.getRole() == EmployeeRole.STAFF
-                && target.getReportingManager() != null
-                && Objects.equals(
-                        target.getReportingManager().getId(), actor.getId())) {
-            return;
-        }
-
-        throw new AccessDeniedException(
+        if (!resourceAuthorizationService.canManageEmployee(actor, target)) {
+            throw new AccessDeniedException(
                 "You are not allowed to manage this employee");
+        }
     }
 
     private boolean canViewSalary(Employee actor, Employee target) {
