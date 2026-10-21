@@ -1,5 +1,7 @@
 package com.bank.management.employee.controller;
 
+import jakarta.persistence.EntityManager;
+
 import com.bank.management.auth.entity.Session;
 import com.bank.management.auth.enums.SessionTerminationReason;
 import com.bank.management.auth.repository.SessionRepository;
@@ -55,6 +57,9 @@ class EmployeeControllerResourceAuthorizationTest {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     void managerCanAccessTheirOwnStaff() throws Exception {
@@ -244,6 +249,85 @@ void managerCannotChangeStatusOfAnotherManagersStaff()
             unchangedStaff.getStatus()
     );
 }
+
+
+@Test
+void ownerCanMoveManagerWithoutChangingStaffAssignmentsThroughHttp()
+        throws Exception {
+
+    TestEmployees fixture = createTestEmployees();
+
+    Employee manager = fixture.managerA();
+    Employee staff = fixture.staffA();
+
+    Long managerId = manager.getId();
+    Long staffId = staff.getId();
+
+    Long originalBranchId = manager.getBranch().getId();
+    Long destinationBranchId = fixture.staffB().getBranch().getId();
+    Long originalReportingManagerId =
+            staff.getReportingManager().getId();
+
+    String suffix = Long.toString(System.nanoTime());
+
+    Employee owner = employeeRepository.saveAndFlush(new Employee(
+            "OWN" + suffix,
+            null,
+            "test-password-hash",
+            "Test Owner",
+            LocalDate.of(1985, 1, 1),
+            Long.toString(System.nanoTime()),
+            "9876543214",
+            Gender.MALE,
+            LocalDate.of(2010, 1, 1),
+            new BigDecimal("100000.00"),
+            EmployeeRole.OWNER,
+            EmployeeStatus.ACTIVE,
+            null,
+            null
+    ));
+
+    mockMvc.perform(patch(
+                    "/api/employees/{id}/assignment",
+                    managerId)
+                    .with(user(new EmployeeUserDetails(owner)))
+                    .contentType("application/json")
+                    .content("""
+                            {
+                              "branchId": %d
+                            }
+                            """.formatted(destinationBranchId)))
+            .andExpect(status().isOk());
+
+    // Flush changes and clear Hibernate's first-level cache.
+    entityManager.flush();
+    entityManager.clear();
+
+    Employee movedManager = employeeRepository.findById(managerId)
+            .orElseThrow();
+
+    Employee unchangedStaff = employeeRepository.findById(staffId)
+            .orElseThrow();
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+            destinationBranchId,
+            movedManager.getBranch().getId(),
+            "The Manager should move to the destination branch"
+    );
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+            originalBranchId,
+            unchangedStaff.getBranch().getId(),
+            "The Staff member should remain in the original branch"
+    );
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+            originalReportingManagerId,
+            unchangedStaff.getReportingManager().getId(),
+            "The Staff member should retain the original reporting Manager"
+    );
+}
+
 
 private String createAccessToken(Employee employee) {
     Session session = new Session(
