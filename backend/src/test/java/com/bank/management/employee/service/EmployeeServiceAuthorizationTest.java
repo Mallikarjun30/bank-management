@@ -1,19 +1,15 @@
+
 package com.bank.management.employee.service;
 
 import com.bank.management.account.repository.BankAccountRepository;
-import com.bank.management.common.security.ResourceAuthorizationService;
-
-
-import com.bank.management.common.exception.BusinessRuleException;
-import com.bank.management.employee.dto.EmployeeAssignmentRequest;
-import com.bank.management.employee.dto.EmployeeStatusRequest;
 import com.bank.management.branch.entity.Branch;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.never;
-
 import com.bank.management.branch.repository.BranchRepository;
+import com.bank.management.common.exception.BusinessRuleException;
 import com.bank.management.common.security.CurrentEmployee;
+import com.bank.management.common.security.ResourceAuthorizationService;
+import com.bank.management.employee.dto.EmployeeAssignmentRequest;
 import com.bank.management.employee.dto.EmployeeResponse;
+import com.bank.management.employee.dto.EmployeeStatusRequest;
 import com.bank.management.employee.entity.Employee;
 import com.bank.management.employee.enums.EmployeeRole;
 import com.bank.management.employee.enums.EmployeeStatus;
@@ -21,7 +17,6 @@ import com.bank.management.employee.repository.EmployeeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
@@ -33,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,23 +55,23 @@ class EmployeeServiceAuthorizationTest {
     private Employee actor;
 
     @BeforeEach
-void setUp() {
-    actor = mock(Employee.class);
+    void setUp() {
+        actor = mock(Employee.class);
 
-    when(currentEmployee.get()).thenReturn(actor);
-    when(actor.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
+        when(currentEmployee.get()).thenReturn(actor);
+        when(actor.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
 
-    ResourceAuthorizationService resourceAuthorizationService =
-            new ResourceAuthorizationService(bankAccountRepository);
+        ResourceAuthorizationService resourceAuthorizationService =
+                new ResourceAuthorizationService(bankAccountRepository);
 
-    employeeService = new EmployeeService(
-            employeeRepository,
-            branchRepository,
-            currentEmployee,
-            passwordEncoder,
-            resourceAuthorizationService
-    );
-}
+        employeeService = new EmployeeService(
+                employeeRepository,
+                branchRepository,
+                currentEmployee,
+                passwordEncoder,
+                resourceAuthorizationService
+        );
+    }
 
     @Test
     void staffCannotCreateAnotherEmployee() {
@@ -97,6 +94,7 @@ void setUp() {
         when(targetStaff.getRole()).thenReturn(EmployeeRole.STAFF);
         when(targetStaff.getReportingManager()).thenReturn(otherManager);
         when(otherManager.getId()).thenReturn(20L);
+
         when(employeeRepository.findById(100L))
                 .thenReturn(Optional.of(targetStaff));
 
@@ -110,6 +108,7 @@ void setUp() {
     void staffCanViewOwnRecordButCannotSeeSalary() {
         when(actor.getId()).thenReturn(7L);
         when(actor.getRole()).thenReturn(EmployeeRole.STAFF);
+
         when(employeeRepository.findById(7L))
                 .thenReturn(Optional.of(actor));
 
@@ -120,198 +119,203 @@ void setUp() {
     }
 
     @Test
-void managerCannotChangeEmployeeAssignment() {
-    when(actor.getRole()).thenReturn(EmployeeRole.MANAGER);
+    void managerCannotChangeEmployeeAssignment() {
+        when(actor.getRole()).thenReturn(EmployeeRole.MANAGER);
 
-    assertThrows(
-            AccessDeniedException.class,
-            () -> employeeService.updateAssignment(
-                    100L,
-                    new EmployeeAssignmentRequest(1L, 10L)
-            )
-    );
-}
+        assertThrows(
+                AccessDeniedException.class,
+                () -> employeeService.updateAssignment(
+                        100L,
+                        new EmployeeAssignmentRequest(1L, 10L)
+                )
+        );
+    }
 
-@Test
-void ownerCannotChangeOwnAssignment() {
-    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+    @Test
+    void ownerCannotChangeOwnAssignment() {
+        when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
 
-    when(employeeRepository.findById(1L))
-            .thenReturn(Optional.of(actor));
+        when(employeeRepository.findById(1L))
+                .thenReturn(Optional.of(actor));
 
-    assertThrows(
-            BusinessRuleException.class,
-            () -> employeeService.updateAssignment(
-                    1L,
-                    new EmployeeAssignmentRequest(2L, null)
-            )
-    );
+        assertThrows(
+                BusinessRuleException.class,
+                () -> employeeService.updateAssignment(
+                        1L,
+                        new EmployeeAssignmentRequest(2L, null)
+                )
+        );
 
-    verify(employeeRepository, never()).save(actor);
-}
+        verify(employeeRepository, never()).save(actor);
+    }
 
-@Test
-void managerCannotBeDeactivatedWhileActiveStaffReportToThem() {
-    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+    @Test
+    void managerCannotBeDeactivatedWhileActiveStaffReportToThem() {
+        when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
 
-    Employee manager = mock(Employee.class);
-    when(manager.getId()).thenReturn(2L);
-    when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
+        Employee manager = mock(Employee.class);
 
-    when(employeeRepository.findById(2L))
-            .thenReturn(Optional.of(manager));
+        when(manager.getId()).thenReturn(2L);
+        when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
 
-    when(employeeRepository
-            .existsByReportingManager_IdAndRoleAndStatus(
-                    2L,
-                    EmployeeRole.STAFF,
-                    EmployeeStatus.ACTIVE
-            )).thenReturn(true);
+        when(employeeRepository.findById(2L))
+                .thenReturn(Optional.of(manager));
 
-    assertThrows(
-            BusinessRuleException.class,
-            () -> employeeService.updateStatus(
-                    2L,
-                    new EmployeeStatusRequest(EmployeeStatus.INACTIVE)
-            )
-    );
+        when(employeeRepository
+                .existsByReportingManager_IdAndRoleAndStatus(
+                        2L,
+                        EmployeeRole.STAFF,
+                        EmployeeStatus.ACTIVE
+                ))
+                .thenReturn(true);
 
-    verify(employeeRepository, never()).save(manager);
-}
+        assertThrows(
+                BusinessRuleException.class,
+                () -> employeeService.updateStatus(
+                        2L,
+                        new EmployeeStatusRequest(EmployeeStatus.INACTIVE)
+                )
+        );
 
-@Test
-void ownerCanMoveManagerWithoutReassigningStaff() {
-    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+        verify(employeeRepository, never()).save(manager);
+    }
 
-    Employee manager = mock(Employee.class);
-    Branch newBranch = mock(Branch.class);
-    when(manager.getReportingManager()).thenReturn(actor);
+    @Test
+    void ownerCanMoveManagerWithoutReassigningStaff() {
+        when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
 
-    when(employeeRepository.findById(2L))
-            .thenReturn(Optional.of(manager));
-    when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
-    when(branchRepository.findById(2L))
-            .thenReturn(Optional.of(newBranch));
+        Employee manager = mock(Employee.class);
+        Branch newBranch = mock(Branch.class);
 
-    when(employeeRepository.save(manager)).thenReturn(manager);
-    when(manager.getId()).thenReturn(2L);
-    when(manager.getEmployeeId()).thenReturn("EMP-MANAGER-002");
+        when(manager.getReportingManager()).thenReturn(actor);
+        when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
+        when(manager.getId()).thenReturn(2L);
+        when(manager.getEmployeeId()).thenReturn("EMP-MANAGER-002");
 
-    employeeService.updateAssignment(
-            2L,
-            new EmployeeAssignmentRequest(2L, null)
-    );
+        when(employeeRepository.findById(2L))
+                .thenReturn(Optional.of(manager));
 
-    verify(manager).setBranch(newBranch);
-    verify(employeeRepository).save(manager);
+        when(branchRepository.findById(2L))
+                .thenReturn(Optional.of(newBranch));
 
-    // Moving a Manager must not trigger automatic Staff reassignment.
-    verify(
-            employeeRepository,
-            never()
-    ).findAllByReportingManager_IdAndRoleOrderByIdAsc(
-            2L,
-            EmployeeRole.STAFF
-    );
-}
+        when(employeeRepository.save(manager)).thenReturn(manager);
 
-@Test
-void ownerCanReassignStaffToAnotherManagerInSameBranch() {
-    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+        employeeService.updateAssignment(
+                2L,
+                new EmployeeAssignmentRequest(2L, null)
+        );
 
-    Employee staff = mock(Employee.class);
-    Employee manager = mock(Employee.class);
-    Branch branch = mock(Branch.class);
-    when(staff.getReportingManager()).thenReturn(manager);
+        verify(manager).setBranch(newBranch);
+        verify(employeeRepository).save(manager);
 
-    when(employeeRepository.findById(100L))
-            .thenReturn(Optional.of(staff));
-    when(staff.getRole()).thenReturn(EmployeeRole.STAFF);
+        // Reallocation must not trigger a bulk Staff reassignment.
+        verify(employeeRepository, never())
+                .findAllByReportingManager_IdAndRoleOrderByIdAsc(
+                        2L,
+                        EmployeeRole.STAFF
+                );
+    }
 
-    when(branchRepository.findById(2L))
-            .thenReturn(Optional.of(branch));
-    when(branch.getId()).thenReturn(2L);
+    @Test
+    void ownerCanReassignStaffToAnotherManagerInSameBranch() {
+        when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
 
-    when(employeeRepository.findById(20L))
-            .thenReturn(Optional.of(manager));
-    when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
-    when(manager.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
-    when(manager.getBranch()).thenReturn(branch);
+        Employee staff = mock(Employee.class);
+        Employee manager = mock(Employee.class);
+        Branch branch = mock(Branch.class);
 
-    when(employeeRepository.save(staff)).thenReturn(staff);
-    when(staff.getId()).thenReturn(100L);
-    when(staff.getEmployeeId()).thenReturn("EMP-STAFF-100");
+        when(staff.getReportingManager()).thenReturn(manager);
+        when(staff.getRole()).thenReturn(EmployeeRole.STAFF);
+        when(staff.getId()).thenReturn(100L);
+        when(staff.getEmployeeId()).thenReturn("EMP-STAFF-100");
 
-    employeeService.updateAssignment(
-            100L,
-            new EmployeeAssignmentRequest(2L, 20L)
-    );
+        when(employeeRepository.findById(100L))
+                .thenReturn(Optional.of(staff));
 
-    verify(staff).setBranch(branch);
-    verify(staff).setReportingManager(manager);
-    verify(employeeRepository).save(staff);
-}
+        when(branchRepository.findById(2L))
+                .thenReturn(Optional.of(branch));
 
+        when(branch.getId()).thenReturn(2L);
 
-@Test
-void ownerCanReassignStaffAcrossBranchesToManagerInDestinationBranch() {
-    when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
+        when(employeeRepository.findById(20L))
+                .thenReturn(Optional.of(manager));
 
-    Employee staff = mock(Employee.class);
-    Employee destinationManager = mock(Employee.class);
-    Branch destinationBranch = mock(Branch.class);
+        when(manager.getRole()).thenReturn(EmployeeRole.MANAGER);
+        when(manager.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
+        when(manager.getBranch()).thenReturn(branch);
 
-    when(staff.getReportingManager()).thenReturn(destinationManager);
+        when(employeeRepository.save(staff)).thenReturn(staff);
 
-    when(employeeRepository.findById(100L))
-            .thenReturn(Optional.of(staff));
-    when(staff.getRole()).thenReturn(EmployeeRole.STAFF);
+        employeeService.updateAssignment(
+                100L,
+                new EmployeeAssignmentRequest(2L, 20L)
+        );
 
-    when(branchRepository.findById(3L))
-            .thenReturn(Optional.of(destinationBranch));
-    when(destinationBranch.getId()).thenReturn(3L);
+        verify(staff).setBranch(branch);
+        verify(staff).setReportingManager(manager);
+        verify(employeeRepository).save(staff);
+    }
 
-    when(employeeRepository.findById(30L))
-            .thenReturn(Optional.of(destinationManager));
-    when(destinationManager.getRole()).thenReturn(EmployeeRole.MANAGER);
-    when(destinationManager.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
-    when(destinationManager.getBranch()).thenReturn(destinationBranch);
+    @Test
+    void ownerCanReassignStaffAcrossBranchesToManagerInDestinationBranch() {
+        when(actor.getRole()).thenReturn(EmployeeRole.OWNER);
 
-    when(employeeRepository.save(staff)).thenReturn(staff);
-    when(staff.getId()).thenReturn(100L);
-    when(staff.getEmployeeId()).thenReturn("EMP-STAFF-100");
+        Employee staff = mock(Employee.class);
+        Employee destinationManager = mock(Employee.class);
+        Branch destinationBranch = mock(Branch.class);
 
-    employeeService.updateAssignment(
-            100L,
-            new EmployeeAssignmentRequest(3L, 30L)
-    );
+        when(staff.getReportingManager()).thenReturn(destinationManager);
+        when(staff.getRole()).thenReturn(EmployeeRole.STAFF);
+        when(staff.getId()).thenReturn(100L);
+        when(staff.getEmployeeId()).thenReturn("EMP-STAFF-100");
 
-    verify(staff).setBranch(destinationBranch);
-    verify(staff).setReportingManager(destinationManager);
-    verify(employeeRepository).save(staff);
-}
+        when(employeeRepository.findById(100L))
+                .thenReturn(Optional.of(staff));
 
+        when(branchRepository.findById(3L))
+                .thenReturn(Optional.of(destinationBranch));
 
-@Test
-void managerCannotUpdateStaffAssignedToAnotherManager() {
-    Employee otherManager = mock(Employee.class);
-    Employee targetStaff = mock(Employee.class);
+        when(destinationBranch.getId()).thenReturn(3L);
 
-    when(actor.getId()).thenReturn(10L);
-    when(actor.getRole()).thenReturn(EmployeeRole.MANAGER);
+        when(employeeRepository.findById(30L))
+                .thenReturn(Optional.of(destinationManager));
 
-    when(targetStaff.getRole()).thenReturn(EmployeeRole.STAFF);
-    when(targetStaff.getReportingManager()).thenReturn(otherManager);
-    when(otherManager.getId()).thenReturn(20L);
+        when(destinationManager.getRole()).thenReturn(EmployeeRole.MANAGER);
+        when(destinationManager.getStatus()).thenReturn(EmployeeStatus.ACTIVE);
+        when(destinationManager.getBranch()).thenReturn(destinationBranch);
 
-    when(employeeRepository.findById(100L))
-            .thenReturn(Optional.of(targetStaff));
+        when(employeeRepository.save(staff)).thenReturn(staff);
 
-    assertThrows(
-            AccessDeniedException.class,
-            () -> employeeService.updateEmployee(100L, null)
-    );
+        employeeService.updateAssignment(
+                100L,
+                new EmployeeAssignmentRequest(3L, 30L)
+        );
 
-    verify(employeeRepository, never()).save(targetStaff);
-}
+        verify(staff).setBranch(destinationBranch);
+        verify(staff).setReportingManager(destinationManager);
+        verify(employeeRepository).save(staff);
+    }
+
+    @Test
+    void managerCannotUpdateStaffAssignedToAnotherManager() {
+        Employee otherManager = mock(Employee.class);
+        Employee targetStaff = mock(Employee.class);
+
+        when(actor.getId()).thenReturn(10L);
+        when(actor.getRole()).thenReturn(EmployeeRole.MANAGER);
+
+        when(targetStaff.getRole()).thenReturn(EmployeeRole.STAFF);
+        when(targetStaff.getReportingManager()).thenReturn(otherManager);
+        when(otherManager.getId()).thenReturn(20L);
+
+        when(employeeRepository.findById(100L))
+                .thenReturn(Optional.of(targetStaff));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> employeeService.updateEmployee(100L, null)
+        );
+
+        verify(employeeRepository, never()).save(targetStaff);
+    }
 }
