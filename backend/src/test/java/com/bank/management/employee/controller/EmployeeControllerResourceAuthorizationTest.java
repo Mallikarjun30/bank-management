@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -180,6 +181,68 @@ void validJwtWithRevokedSessionCannotAuthenticate() throws Exception {
                             "Bearer " + token
                     ))
             .andExpect(status().isUnauthorized());
+}
+
+@Test
+void managerCannotUpdateAnotherManagersStaffByChangingUrlId()
+        throws Exception {
+
+    TestEmployees fixture = createTestEmployees();
+    Employee staffB = fixture.staffB();
+
+    mockMvc.perform(put("/api/employees/{id}", staffB.getId())
+                    .with(user(new EmployeeUserDetails(fixture.managerA())))
+                    .contentType("application/json")
+                    .content("""
+                            {
+                              "employeeId": "AUTH-TEST-UPDATE",
+                              "email": "auth-test-update@example.com",
+                              "fullName": "Unauthorized Name Change",
+                              "dateOfBirth": "1995-01-15",
+                              "identityProofNumber": "987654321012",
+                              "phoneNumber": "+91 9876543210",
+                              "gender": "MALE",
+                              "dateOfJoining": "2020-01-01",
+                              "monthlySalary": 50000.00
+                            }
+                            """))
+            .andExpect(status().isForbidden());
+
+    Employee unchangedStaff = employeeRepository.findById(staffB.getId())
+            .orElseThrow();
+
+    org.junit.jupiter.api.Assertions.assertNotEquals(
+            "Unauthorized Name Change",
+            unchangedStaff.getFullName()
+    );
+}
+
+@Test
+void managerCannotChangeStatusOfAnotherManagersStaff()
+        throws Exception {
+
+    TestEmployees fixture = createTestEmployees();
+    Employee staffB = fixture.staffB();
+
+    mockMvc.perform(patch(
+                    "/api/employees/{id}/status",
+                    staffB.getId())
+                    .with(user(new EmployeeUserDetails(fixture.managerA())))
+                    .contentType("application/json")
+                    .content("""
+                            {
+                              "status": "INACTIVE"
+                            }
+                            """))
+            .andExpect(status().isForbidden());
+
+    Employee unchangedStaff = employeeRepository.findById(staffB.getId())
+            .orElseThrow();
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+            EmployeeStatus.ACTIVE,
+            unchangedStaff.getStatus()
+    );
 }
 
 private String createAccessToken(Employee employee) {
