@@ -1,27 +1,28 @@
 package com.bank.management.employee.controller;
 
-import jakarta.persistence.EntityManager;
-
-import com.bank.management.auth.entity.Session;
-import com.bank.management.auth.enums.SessionTerminationReason;
-import com.bank.management.auth.repository.SessionRepository;
-import com.bank.management.auth.enums.SessionStatus;
-import com.bank.management.auth.service.JwtService;
-import org.springframework.http.HttpHeaders;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.bank.management.auth.entity.Session;
+import com.bank.management.auth.enums.SessionStatus;
+import com.bank.management.auth.enums.SessionTerminationReason;
+import com.bank.management.auth.repository.SessionRepository;
+import com.bank.management.auth.service.JwtService;
 import com.bank.management.branch.entity.Branch;
 import com.bank.management.branch.repository.BranchRepository;
 import com.bank.management.common.security.EmployeeUserDetails;
@@ -31,12 +32,7 @@ import com.bank.management.employee.enums.EmployeeStatus;
 import com.bank.management.employee.enums.Gender;
 import com.bank.management.employee.repository.EmployeeRepository;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -329,6 +325,75 @@ void ownerCanMoveManagerWithoutChangingStaffAssignmentsThroughHttp()
 }
 
 
+@Test
+void ownerCanReassignStaffToManagerInAnotherBranchThroughHttp()
+        throws Exception {
+
+    TestEmployees fixture = createTestEmployees();
+
+    Employee staff = fixture.staffA();
+    Employee destinationManager = fixture.managerB();
+
+    Long staffId = staff.getId();
+    Long destinationBranchId = destinationManager.getBranch().getId();
+    Long destinationManagerId = destinationManager.getId();
+
+    String suffix = Long.toString(System.nanoTime());
+
+    Employee owner = employeeRepository.saveAndFlush(new Employee(
+            "OWN" + suffix,
+            null,
+            "test-password-hash",
+            "Test Owner",
+            LocalDate.of(1985, 1, 1),
+            Long.toString(System.nanoTime()),
+            "9876543214",
+            Gender.MALE,
+            LocalDate.of(2010, 1, 1),
+            new BigDecimal("100000.00"),
+            EmployeeRole.OWNER,
+            EmployeeStatus.ACTIVE,
+            null,
+            null
+    ));
+
+    mockMvc.perform(patch(
+                    "/api/employees/{id}/assignment",
+                    staffId)
+                    .with(user(new EmployeeUserDetails(owner)))
+                    .contentType("application/json")
+                    .content("""
+                            {
+                              "branchId": %d,
+                              "reportingManagerId": %d
+                            }
+                            """.formatted(
+                                    destinationBranchId,
+                                    destinationManagerId)))
+            .andExpect(status().isOk());
+
+    // Force pending database changes to execute and clear cached entities.
+    entityManager.flush();
+    entityManager.clear();
+
+    Employee reassignedStaff = employeeRepository.findById(staffId)
+            .orElseThrow();
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+            destinationBranchId,
+            reassignedStaff.getBranch().getId(),
+            "Staff should move to the destination branch"
+    );
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+            destinationManagerId,
+            reassignedStaff.getReportingManager().getId(),
+            "Staff should report to the destination Manager"
+    );
+}
+
+
+
 private String createAccessToken(Employee employee) {
     Session session = new Session(
             employee,
@@ -431,13 +496,14 @@ private String createAccessToken(Employee employee) {
                 managerB
         ));
 
-        return new TestEmployees(managerA, staffA, staffB);
+        return new TestEmployees(managerA, managerB, staffA, staffB);
     }
 
     private record TestEmployees(
-            Employee managerA,
-            Employee staffA,
-            Employee staffB
+        Employee managerA,
+        Employee managerB,
+        Employee staffA,
+        Employee staffB
     ) {
     }
 }
