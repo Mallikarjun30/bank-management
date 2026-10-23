@@ -89,10 +89,9 @@ public class ResourceAuthorizationService {
             return true;
         }
 
-        return bankAccountRepository
-                .findByCustomerId(customer.getId())
-                .map(account -> canAccessAccount(actor, account))
-                .orElse(false);
+        // Customer access is based on branch ownership, not on
+        // whether the customer already has a bank account.
+        return canAccessBranch(actor, customer.getBranch());
     }
 
     public boolean canManageEmployee(Employee actor, Employee target) {

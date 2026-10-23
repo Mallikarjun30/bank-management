@@ -126,28 +126,26 @@ class ResourceAuthorizationServiceTest {
                 authorizationService.canAccessAccount(manager, account));
     }
 
-    @Test
+        @Test
     void ownerCanAccessCustomerWithoutAccount() {
         Employee owner = employee(1L, EmployeeRole.OWNER, null, null);
-        Customer customer = customer(50L);
+        Customer customer = customer(50L, branch(100L));
 
-        assertTrue(
-                authorizationService.canAccessCustomer(owner, customer));
+        assertTrue(authorizationService.canAccessCustomer(owner, customer));
 
         verifyNoInteractions(bankAccountRepository);
     }
 
     @Test
-    void managerCannotAccessCustomerWithoutAccount() {
+    void managerCanAccessCustomerWithoutAccountInOwnBranch() {
+        Branch ownBranch = branch(100L);
         Employee manager =
-                employee(10L, EmployeeRole.MANAGER, branch(100L), null);
-        Customer customer = customer(50L);
+                employee(10L, EmployeeRole.MANAGER, ownBranch, null);
+        Customer customer = customer(50L, ownBranch);
 
-        when(bankAccountRepository.findByCustomerId(50L))
-                .thenReturn(Optional.empty());
+        assertTrue(authorizationService.canAccessCustomer(manager, customer));
 
-        assertFalse(
-                authorizationService.canAccessCustomer(manager, customer));
+        verifyNoInteractions(bankAccountRepository);
     }
 
     @Test
@@ -155,32 +153,54 @@ class ResourceAuthorizationServiceTest {
         Branch ownBranch = branch(100L);
         Employee manager =
                 employee(10L, EmployeeRole.MANAGER, ownBranch, null);
-        Customer customer = customer(50L);
-        BankAccount account = mock(BankAccount.class);
+        Customer customer = customer(50L, ownBranch);
 
-        when(bankAccountRepository.findByCustomerId(50L))
-                .thenReturn(Optional.of(account));
-        when(account.getBranch()).thenReturn(ownBranch);
+        assertTrue(authorizationService.canAccessCustomer(manager, customer));
 
-        assertTrue(
-                authorizationService.canAccessCustomer(manager, customer));
+        verifyNoInteractions(bankAccountRepository);
     }
 
     @Test
-    void managerCannotAccessCustomerWithAccountInAnotherBranch() {
+    void managerCannotAccessCustomerInAnotherBranch() {
         Branch ownBranch = branch(100L);
         Branch otherBranch = branch(200L);
         Employee manager =
                 employee(10L, EmployeeRole.MANAGER, ownBranch, null);
+        Customer customer = customer(50L, otherBranch);
+
+        assertFalse(authorizationService.canAccessCustomer(manager, customer));
+
+        verifyNoInteractions(bankAccountRepository);
+    }
+
+    @Test
+    void staffCanAccessCustomerInOwnBranch() {
+        Branch ownBranch = branch(100L);
+        Employee staff =
+                employee(20L, EmployeeRole.STAFF, ownBranch, null);
+        Customer customer = customer(50L, ownBranch);
+
+        assertTrue(authorizationService.canAccessCustomer(staff, customer));
+    }
+
+    @Test
+    void staffCannotAccessCustomerInAnotherBranch() {
+        Branch ownBranch = branch(100L);
+        Branch otherBranch = branch(200L);
+        Employee staff =
+                employee(20L, EmployeeRole.STAFF, ownBranch, null);
+        Customer customer = customer(50L, otherBranch);
+
+        assertFalse(authorizationService.canAccessCustomer(staff, customer));
+    }
+
+    @Test
+    void nonOwnerCannotAccessCustomerWithoutBranch() {
+        Employee manager =
+                employee(10L, EmployeeRole.MANAGER, branch(100L), null);
         Customer customer = customer(50L);
-        BankAccount account = mock(BankAccount.class);
 
-        when(bankAccountRepository.findByCustomerId(50L))
-                .thenReturn(Optional.of(account));
-        when(account.getBranch()).thenReturn(otherBranch);
-
-        assertFalse(
-                authorizationService.canAccessCustomer(manager, customer));
+        assertFalse(authorizationService.canAccessCustomer(manager, customer));
     }
 
     @Test
@@ -273,8 +293,13 @@ void nullEmployeeCannotManageResources() {
     }
 
     private Customer customer(Long id) {
+        return customer(id, null);
+    }
+
+    private Customer customer(Long id, Branch branch) {
         Customer customer = mock(Customer.class);
         when(customer.getId()).thenReturn(id);
+        when(customer.getBranch()).thenReturn(branch);
         return customer;
     }
 }
